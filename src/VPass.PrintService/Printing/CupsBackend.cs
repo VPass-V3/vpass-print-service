@@ -50,6 +50,36 @@ public sealed class CupsBackend : IPrinterBackend
         }
     }
 
+    public IReadOnlyList<string> ListPaperSizes(string printerName)
+    {
+        try
+        {
+            var result = ProcessRunner.Run("lpoptions", new[] { "-p", printerName, "-l" }, TimeSpan.FromSeconds(15));
+            var list = new List<string>();
+            foreach (string line in result.StdOut.Split('\n'))
+            {
+                // "PageSize/Media Size: *62x100 62x29 DC03 ..." -> option values; * marks the default
+                if (line.StartsWith("PageSize", StringComparison.OrdinalIgnoreCase) || line.StartsWith("media", StringComparison.OrdinalIgnoreCase))
+                {
+                    int colon = line.IndexOf(':');
+                    if (colon > 0)
+                    {
+                        foreach (string v in line[(colon + 1)..].Split(' ', StringSplitOptions.RemoveEmptyEntries))
+                        {
+                            list.Add(v.StartsWith('*') ? v[1..] + "  (default)" : v);
+                        }
+                    }
+                }
+            }
+            return list;
+        }
+        catch (Exception ex)
+        {
+            _log.LogDebug(ex, "lpoptions failed");
+            return Array.Empty<string>();
+        }
+    }
+
     public void Print(string imagePath, PrintOptions options)
     {
         var args = new List<string> { "-d", options.PrinterName, "-o", "fit-to-page" };

@@ -47,6 +47,7 @@ The card in the admin portal turns **Online** within a minute.
 ```
 vpass-print pair <code> [--region au|us|uk|ca] [--printer "<name>"] [--paper <name>] [--no-rotate]
 vpass-print printers
+vpass-print papers [--printer "<name>"]
 vpass-print set-printer "<name>" [--paper <name>] [--rotate|--no-rotate] [--copies N]
 vpass-print test-print [--landscape]
 vpass-print install [--account DOMAIN\user --password ***]   # admin / sudo
@@ -72,6 +73,11 @@ Override the data directory with `VPASS_PRINT_DATA_DIR`.
 * **"Printer not ready"** – the OS printer is offline or missing. On Windows a service running as
   *LocalSystem* only sees printers installed for all users; for a per-user network printer reinstall
   with `vpass-print install --account DOMAIN\user`.
+* **Job shows Printed but nothing comes out (Windows)** – the service runs as *LocalSystem* and uses the
+  driver's **Printing Defaults** (Properties → Advanced → Printing Defaults…), not your per-user Printing
+  Preferences. Set the loaded media there (e.g. 62 mm continuous, auto cut), or pin it with
+  `vpass-print papers` then `vpass-print set-printer "<name>" --paper "<size>"`. From 1.0.2 the service
+  watches the Windows queue and reports such jobs as failed with the queue's error text.
 * **Revoked** – an admin revoked / deleted / re-paired the printer. Generate a new code and run `pair` again.
 * **Badge printed twice** – a kiosk at the same location also has a local printer. Turn one off.
 * Logs: `vpass-print logs --follow`.

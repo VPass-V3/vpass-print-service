@@ -46,6 +46,7 @@ public sealed class FakeBackend : IPrinterBackend
     public string Name => "fake";
     public IReadOnlyList<string> ListPrinters() => new[] { "Fake Printer" };
     public bool IsOnline(string? printerName) => Behaviour != Mode.Offline && printerName == "Fake Printer";
+    public IReadOnlyList<string> ListPaperSizes(string printerName) => new[] { "62mm", "62mm x 100mm" };
 
     public void Print(string imagePath, PrintOptions options)
     {

@@ -55,6 +55,22 @@ public sealed class WindowsSpoolerBackend : IPrinterBackend
         return true;
     }
 
+    public IReadOnlyList<string> ListPaperSizes(string printerName)
+    {
+        var settings = new PrinterSettings { PrinterName = printerName };
+        if (!settings.IsValid) return Array.Empty<string>();
+        var list = new List<string>();
+        foreach (PaperSize size in settings.PaperSizes)
+        {
+            // hundredths of an inch -> mm
+            list.Add($"{size.PaperName}  ({size.Width * 0.254:0} x {size.Height * 0.254:0} mm)");
+        }
+        return list;
+    }
+
+    /// <summary>How long to watch the spooler for a media / offline error before treating the job as handed over.</summary>
+    public static TimeSpan SpoolerWatch { get; set; } = TimeSpan.FromSeconds(20);
+
     public void Print(string imagePath, PrintOptions options)
     {
         var settings = new PrinterSettings { PrinterName = options.PrinterName };
@@ -69,24 +85,32 @@ public sealed class WindowsSpoolerBackend : IPrinterBackend
         settings.Copies = (short)Math.Clamp(options.Copies, 1, 10);
 
         using Image image = Image.FromFile(imagePath);
+        string documentName = "VPass badge " + Guid.NewGuid().ToString("N")[..8];
         using var doc = new PrintDocument
         {
             PrinterSettings = settings,
             PrintController = new StandardPrintController(), // no progress dialog, works in a service
-            DocumentName = "VPass badge",
+            DocumentName = documentName,
             OriginAtMargins = false
         };
         doc.DefaultPageSettings.Margins = new Margins(0, 0, 0, 0);
         if (!string.IsNullOrWhiteSpace(options.PaperName))
         {
+            PaperSize? match = null;
             foreach (PaperSize size in settings.PaperSizes)
             {
-                if (string.Equals(size.PaperName, options.PaperName, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(size.PaperName, options.PaperName, StringComparison.OrdinalIgnoreCase)
+                    || size.PaperName.StartsWith(options.PaperName, StringComparison.OrdinalIgnoreCase))
                 {
-                    doc.DefaultPageSettings.PaperSize = size;
+                    match = size;
                     break;
                 }
             }
+            if (match == null)
+            {
+                throw new PrintException($"Paper '{options.PaperName}' is not offered by '{options.PrinterName}' (run: vpass-print papers)");
+            }
+            doc.DefaultPageSettings.PaperSize = match;
         }
 
         Exception? pageError = null;
@@ -129,6 +153,74 @@ public sealed class WindowsSpoolerBackend : IPrinterBackend
         if (pageError != null)
         {
             throw new PrintException("Rendering to the printer failed: " + pageError.Message, pageError);
+        }
+
+        // Print() only means "accepted by the spooler". A Brother/Dymo driver that gets the wrong media
+        // (e.g. die-cut defaults while a continuous roll is loaded) parks the job in the queue with an
+        // error that nobody sees from a service session, so watch the queue before claiming success.
+        WaitForSpooler(options.PrinterName, documentName);
+    }
+
+    private void WaitForSpooler(string printerName, string documentName)
+    {
+        DateTime deadline = DateTime.UtcNow + SpoolerWatch;
+        string? lastStatus = null;
+        while (DateTime.UtcNow < deadline)
+        {
+            string? status;
+            try
+            {
+                status = QueryJobStatus(documentName);
+            }
+            catch (Exception ex)
+            {
+                _log.LogDebug(ex, "Spooler query failed; assuming the job was handed over");
+                return;
+            }
+            if (status == null)
+            {
+                return; // gone from the queue = sent to the printer
+            }
+            lastStatus = status;
+            string lower = status.ToLowerInvariant();
+            if (lower.Contains("error") || lower.Contains("offline") || lower.Contains("paper") || lower.Contains("intervention") || lower.Contains("blocked"))
+            {
+                CancelJob(documentName);
+                throw new PrinterOfflineException(
+                    $"Windows print queue reports '{status}' for '{printerName}'. Check the paper/media in the driver's Printing Defaults (Properties > Advanced) or set --paper; run: vpass-print papers");
+            }
+            Thread.Sleep(500);
+        }
+        _log.LogWarning("Job '{Doc}' still in the queue after {Seconds}s (status '{Status}'); treating as handed over", documentName, SpoolerWatch.TotalSeconds, lastStatus);
+    }
+
+    private static string? QueryJobStatus(string documentName)
+    {
+        using var searcher = new ManagementObjectSearcher(
+            $"SELECT JobStatus, Status, Document FROM Win32_PrintJob WHERE Document = '{Escape(documentName)}'");
+        foreach (ManagementObject job in searcher.Get())
+        {
+            string js = job["JobStatus"] as string ?? "";
+            string st = job["Status"] as string ?? "";
+            return string.IsNullOrWhiteSpace(js) ? (string.IsNullOrWhiteSpace(st) ? "Queued" : st) : js;
+        }
+        return null;
+    }
+
+    private void CancelJob(string documentName)
+    {
+        try
+        {
+            using var searcher = new ManagementObjectSearcher(
+                $"SELECT * FROM Win32_PrintJob WHERE Document = '{Escape(documentName)}'");
+            foreach (ManagementObject job in searcher.Get())
+            {
+                job.Delete();
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.LogDebug(ex, "Could not remove the failed job from the queue");
         }
     }
 

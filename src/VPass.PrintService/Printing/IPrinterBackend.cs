@@ -23,7 +23,9 @@ public interface IPrinterBackend
     string Name { get; }
     IReadOnlyList<string> ListPrinters();
     bool IsOnline(string? printerName);
-    /// <summary>Print a PNG/JPEG file scaled to the printable area. Blocks until spooled.</summary>
+    /// <summary>Paper / media names the driver offers for <paramref name="printerName"/> (for --paper).</summary>
+    IReadOnlyList<string> ListPaperSizes(string printerName);
+    /// <summary>Print a PNG/JPEG file scaled to the printable area. Blocks until the spooler has handed the job to the printer (or reports an error).</summary>
     void Print(string imagePath, PrintOptions options);
 }
 

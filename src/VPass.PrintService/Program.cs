@@ -30,6 +30,8 @@ try
             return await Commands.PairAsync(paths, cli);
         case "printers":
             return Commands.ListPrinters(paths);
+        case "papers":
+            return Commands.ListPapers(paths, cli);
         case "set-printer":
             return Commands.SetPrinter(paths, cli);
         case "test-print":
@@ -80,6 +82,8 @@ Usage: vpass-print <command> [options]
                        (Setup > Badge Printing > Manage printers). Picks the printer interactively
                        when --printer is omitted.
   printers             List printers installed on this PC (* = selected)
+  papers [--printer ""<name>""]
+                       List the paper / media sizes the printer driver offers (for --paper)
   set-printer ""<name>"" [--paper <name>] [--rotate|--no-rotate] [--copies N]
                        Choose the printer badges go to
   test-print [--printer ""<name>""] [--landscape]
@@ -215,6 +219,28 @@ Badges are rendered by the VPass server with the template chosen in the admin po
             string online = backend.IsOnline(p) ? "ready" : "offline";
             Console.WriteLine($"{mark} {p}  [{online}]");
         }
+        return 0;
+    }
+
+    public static int ListPapers(AppPaths paths, Cli cli)
+    {
+        DeviceConfig cfg = new ConfigStore(paths).Load();
+        string printer = cli.Get("printer") ?? cfg.OsPrinterName;
+        if (string.IsNullOrWhiteSpace(printer))
+        {
+            Console.Error.WriteLine("No printer selected. Use --printer \"<name>\" or vpass-print set-printer.");
+            return 2;
+        }
+        IPrinterBackend backend = PrinterBackendFactory.Create(NullLoggerFactory.Instance);
+        IReadOnlyList<string> papers = backend.ListPaperSizes(printer);
+        if (papers.Count == 0)
+        {
+            Console.WriteLine($"No paper sizes reported for '{printer}'.");
+            return 0;
+        }
+        Console.WriteLine($"Paper sizes for '{printer}'  (current: {cfg.PaperName ?? "driver default"}):");
+        foreach (string p in papers) Console.WriteLine("  " + p);
+        Console.WriteLine("Pin one with: vpass-print set-printer \"" + printer + "\" --paper \"<name>\"");
         return 0;
     }
 

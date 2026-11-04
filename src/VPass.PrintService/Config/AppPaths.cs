@@ -40,7 +40,7 @@ public sealed class AppPaths
         {
             return new AppPaths(overrideDir);
         }
-        bool readOnlyVerb = verb is "status" or "logs" or "printers" or "version" or "help" or "--help" or "-h" or "--version";
+        bool readOnlyVerb = verb is "status" or "logs" or "printers" or "papers" or "version" or "help" or "--help" or "-h" or "--version";
         string machine = DefaultMachineDir();
         if (readOnlyVerb && Directory.Exists(machine) && !IsWritable(machine) && File.Exists(Path.Combine(machine, "config.json")))
         {
