@@ -96,15 +96,29 @@ public sealed class WindowsSpoolerBackend : IPrinterBackend
         doc.DefaultPageSettings.Margins = new Margins(0, 0, 0, 0);
         if (!string.IsNullOrWhiteSpace(options.PaperName))
         {
+            // Exact name first ("62mm" is the continuous roll; "62mm x 29mm" etc. are die-cut sizes
+            // that also start with "62mm"), then a unique prefix as a convenience.
             PaperSize? match = null;
+            var prefixMatches = new List<PaperSize>();
             foreach (PaperSize size in settings.PaperSizes)
             {
-                if (string.Equals(size.PaperName, options.PaperName, StringComparison.OrdinalIgnoreCase)
-                    || size.PaperName.StartsWith(options.PaperName, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(size.PaperName.Trim(), options.PaperName.Trim(), StringComparison.OrdinalIgnoreCase))
                 {
                     match = size;
                     break;
                 }
+                if (size.PaperName.StartsWith(options.PaperName.Trim(), StringComparison.OrdinalIgnoreCase))
+                {
+                    prefixMatches.Add(size);
+                }
+            }
+            if (match == null && prefixMatches.Count == 1)
+            {
+                match = prefixMatches[0];
+            }
+            if (match == null && prefixMatches.Count > 1)
+            {
+                throw new PrintException($"Paper '{options.PaperName}' matches several sizes on '{options.PrinterName}' ({string.Join(", ", prefixMatches.Select(m => m.PaperName))}); use the exact name from: vpass-print papers");
             }
             if (match == null)
             {
