@@ -165,6 +165,7 @@ public sealed class WindowsSpoolerBackend : IPrinterBackend
     {
         DateTime deadline = DateTime.UtcNow + SpoolerWatch;
         string? lastStatus = null;
+        bool resumed = false;
         while (DateTime.UtcNow < deadline)
         {
             string? status;
@@ -189,9 +190,47 @@ public sealed class WindowsSpoolerBackend : IPrinterBackend
                 throw new PrinterOfflineException(
                     $"Windows print queue reports '{status}' for '{printerName}'. Check the paper/media in the driver's Printing Defaults (Properties > Advanced) or set --paper; run: vpass-print papers");
             }
+            if (lower.Contains("paused"))
+            {
+                // Brother/Dymo drivers pause a job when they want to show a prompt (media mismatch, status
+                // monitor) and there is no desktop in a service session to show it on. Resume it once; if
+                // the driver pauses it again it will never print, so report it instead of claiming success.
+                if (!resumed)
+                {
+                    resumed = true;
+                    _log.LogWarning("Driver paused job '{Doc}' on '{Printer}'; resuming once", documentName, printerName);
+                    InvokeOnJob(documentName, "Resume");
+                    Thread.Sleep(1500);
+                    continue;
+                }
+            }
             Thread.Sleep(500);
         }
+
+        if (lastStatus != null && lastStatus.Contains("paused", StringComparison.OrdinalIgnoreCase))
+        {
+            CancelJob(documentName);
+            throw new PrinterOfflineException(
+                $"The '{printerName}' driver keeps pausing the job (status '{lastStatus}'). On the PC: Printer Properties > Ports > untick 'Enable bidirectional support', and set the loaded media under Properties > Advanced > Printing Defaults; then retry.");
+        }
         _log.LogWarning("Job '{Doc}' still in the queue after {Seconds}s (status '{Status}'); treating as handed over", documentName, SpoolerWatch.TotalSeconds, lastStatus);
+    }
+
+    private void InvokeOnJob(string documentName, string method)
+    {
+        try
+        {
+            using var searcher = new ManagementObjectSearcher(
+                $"SELECT * FROM Win32_PrintJob WHERE Document = '{Escape(documentName)}'");
+            foreach (ManagementObject job in searcher.Get())
+            {
+                job.InvokeMethod(method, null);
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.LogDebug(ex, "Win32_PrintJob.{Method} failed", method);
+        }
     }
 
     private static string? QueryJobStatus(string documentName)

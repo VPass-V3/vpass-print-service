@@ -78,6 +78,10 @@ Override the data directory with `VPASS_PRINT_DATA_DIR`.
   Preferences. Set the loaded media there (e.g. 62 mm continuous, auto cut), or pin it with
   `vpass-print papers` then `vpass-print set-printer "<name>" --paper "<size>"`. From 1.0.2 the service
   watches the Windows queue and reports such jobs as failed with the queue's error text.
+* **Job sits "Printing, Paused" in the Windows queue (owner SYSTEM)** – the Brother/Dymo driver paused it
+  to show a prompt that a service session cannot display. Printer Properties → **Ports → untick "Enable
+  bidirectional support"**, and set the loaded media under Properties → Advanced → Printing Defaults. From
+  1.0.3 the service resumes a paused job once and otherwise reports it as failed with this hint.
 * **Revoked** – an admin revoked / deleted / re-paired the printer. Generate a new code and run `pair` again.
 * **Badge printed twice** – a kiosk at the same location also has a local printer. Turn one off.
 * Logs: `vpass-print logs --follow`.
