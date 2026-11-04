@@ -127,3 +127,46 @@ public sealed class ConfigStoreTests
         Assert.False(File.Exists(paths.ConfigPath + ".tmp"));
     }
 }
+
+public sealed class PairEndpointsTests
+{
+    private static VPass.PrintService.Api.PairResponse Resp(string? region = null, string? api = null, string? socket = null) =>
+        new() { StatusCode = 200, Region = region, ApiBaseUrl = api, SocketUrl = socket };
+
+    [Fact]
+    public void ServerRegionNeverOverridesTheRegionPairedWith()
+    {
+        // dev cluster reports ServerLocation "qa"; the device paired against the dev API.
+        var e = PairEndpoints.Resolve("dev", "https://visitorapidev.vpass.io", null, null, Resp(region: "qa"));
+        Assert.Equal("dev", e.Region);
+        Assert.Equal("https://visitorapidev.vpass.io", e.ApiBaseUrl);
+        Assert.Equal("wss://wsdev.vpass.io/v1", e.SocketUrl);
+    }
+
+    [Fact]
+    public void ExplicitServerUrlOverridesWin()
+    {
+        var e = PairEndpoints.Resolve("au", "https://visitorapi.vpass.io", null, null,
+            Resp(region: "aus", api: "https://api.example.com/", socket: "wss://sock.example.com/v1"));
+        Assert.Equal("https://api.example.com", e.ApiBaseUrl);
+        Assert.Equal("wss://sock.example.com/v1", e.SocketUrl);
+    }
+
+    [Fact]
+    public void CliUrlsBeatEverything()
+    {
+        var e = PairEndpoints.Resolve("uk", "https://visitorapi-uk.vpass.io", "https://cli.example.com", "wss://cli.example.com/v1",
+            Resp(region: "qa", api: "https://api.example.com"));
+        Assert.Equal("https://cli.example.com", e.ApiBaseUrl);
+        Assert.Equal("wss://cli.example.com/v1", e.SocketUrl);
+        Assert.Equal("uk", e.Region);
+    }
+
+    [Fact]
+    public void InvalidServerUrlIsIgnored()
+    {
+        var e = PairEndpoints.Resolve("ca", "https://visitorapi-ca.vpass.io", null, null, Resp(api: "not a url", socket: ""));
+        Assert.Equal("https://visitorapi-ca.vpass.io", e.ApiBaseUrl);
+        Assert.Equal("wss://wsca.vpass.io/v1", e.SocketUrl);
+    }
+}

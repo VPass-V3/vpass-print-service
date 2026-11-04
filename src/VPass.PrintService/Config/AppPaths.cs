@@ -14,15 +14,39 @@ public sealed class AppPaths
     public const string SystemdUnit = "vpass-print-service";
 
     public string DataDir { get; }
+    /// <summary>True when the directory exists but this process cannot write to it (CLI without sudo).</summary>
+    public bool ReadOnly { get; }
     public string ConfigPath => Path.Combine(DataDir, "config.json");
     public string LedgerPath => Path.Combine(DataDir, "acked.json");
     public string StatusPath => Path.Combine(DataDir, "status.json");
     public string LogDir => Path.Combine(DataDir, "logs");
     public string TempDir => Path.Combine(DataDir, "tmp");
 
-    public AppPaths(string? dataDir = null)
+    public AppPaths(string? dataDir = null, bool readOnly = false)
     {
         DataDir = dataDir ?? ResolveDataDir();
+        ReadOnly = readOnly;
+    }
+
+    /// <summary>
+    /// For read-only verbs (status, logs, printers, version, help): if the machine-wide directory
+    /// exists, report on it even when it is not writable, so `vpass-print status` without sudo shows
+    /// the real service state instead of an empty per-user fallback.
+    /// </summary>
+    public static AppPaths ForCli(string verb)
+    {
+        string? overrideDir = Environment.GetEnvironmentVariable("VPASS_PRINT_DATA_DIR");
+        if (!string.IsNullOrWhiteSpace(overrideDir))
+        {
+            return new AppPaths(overrideDir);
+        }
+        bool readOnlyVerb = verb is "status" or "logs" or "printers" or "version" or "help" or "--help" or "-h" or "--version";
+        string machine = DefaultMachineDir();
+        if (readOnlyVerb && Directory.Exists(machine) && !IsWritable(machine) && File.Exists(Path.Combine(machine, "config.json")))
+        {
+            return new AppPaths(machine, readOnly: true);
+        }
+        return new AppPaths();
     }
 
     public void EnsureDirectories()

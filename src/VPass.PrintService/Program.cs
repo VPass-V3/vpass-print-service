@@ -16,8 +16,8 @@ using VPass.PrintService.Printing;
 //   install        register with the OS service manager (admin / sudo)
 //   uninstall | restart | status | logs | version | help
 
-var paths = new AppPaths();
 string verb = args.Length == 0 ? "help" : args[0].ToLowerInvariant();
+var paths = AppPaths.ForCli(verb);
 Cli cli = Cli.Parse(args.Skip(1));
 
 try
@@ -125,13 +125,12 @@ Badges are rendered by the VPass server with the template chosen in the admin po
             AppVersion = AppVersion.Current
         }, CancellationToken.None);
 
-        string finalRegion = string.IsNullOrEmpty(resp.Region) ? region : Regions.Normalise(resp.Region);
-        Regions.TryGet(finalRegion, out var finalEndpoints);
+        Endpoints final = PairEndpoints.Resolve(region, apiBase, cli.Get("api-url"), cli.Get("socket-url"), resp);
         holder.Update(c =>
         {
-            c.Region = finalRegion;
-            c.ApiBaseUrl = resp.ApiBaseUrl ?? cli.Get("api-url") ?? finalEndpoints.ApiBaseUrl;
-            c.SocketUrl = resp.SocketUrl ?? cli.Get("socket-url") ?? finalEndpoints.SocketUrl;
+            c.Region = final.Region;
+            c.ApiBaseUrl = final.ApiBaseUrl;
+            c.SocketUrl = final.SocketUrl;
             c.PrinterId = resp.PrinterId;
             c.OrgId = resp.OrgId;
             c.SiteId = resp.SiteId;
@@ -149,6 +148,7 @@ Badges are rendered by the VPass server with the template chosen in the admin po
         });
 
         Console.WriteLine($"Paired as '{resp.PrinterName}' — {resp.SiteName}{(resp.LocationName != null ? " / " + resp.LocationName : " (all locations)")}.");
+        Console.WriteLine($"API {final.ApiBaseUrl}   socket {final.SocketUrl}   region {final.Region}");
 
         string? printer = cli.Get("printer");
         IPrinterBackend backend = PrinterBackendFactory.Create(NullLoggerFactory.Instance);
@@ -311,7 +311,11 @@ Badges are rendered by the VPass server with the template chosen in the admin po
     {
         DeviceConfig cfg = new ConfigStore(paths).Load();
         Console.WriteLine($"VPass Print Service {AppVersion.Current}  ({AppVersion.Platform})");
-        Console.WriteLine($"Data dir : {paths.DataDir}");
+        Console.WriteLine($"Data dir : {paths.DataDir}{(paths.ReadOnly ? "  (read-only here: use sudo / Administrator to change settings)" : "")}");
+        if (cfg.IsPaired)
+        {
+            Console.WriteLine($"Server   : {cfg.ApiBaseUrl}   socket {cfg.SocketUrl}");
+        }
         if (!cfg.IsPaired)
         {
             Console.WriteLine("Paired   : NO  — run: vpass-print pair <code> --region <au|us|uk|ca>");
