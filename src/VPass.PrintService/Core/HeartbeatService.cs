@@ -109,6 +109,10 @@ public sealed class HeartbeatService : BackgroundService
             }, ct);
 
             _state.LastHeartbeatUtc = DateTime.UtcNow;
+            if (_state.State == ServiceState.Unpaired)
+            {
+                _state.SetRunning(); // paired and the server accepts us: no longer "Unpaired" in status
+            }
             if (resp.PollIntervalSeconds > 0) _state.PollIntervalSeconds = resp.PollIntervalSeconds;
             _state.LatestVersion = resp.LatestVersion;
             _state.UpdateAvailable = resp.UpdateAvailable;
@@ -138,7 +142,7 @@ public sealed class HeartbeatService : BackgroundService
         }
         catch (Exception ex)
         {
-            _state.RecordError("Heartbeat failed: " + ex.Message);
+            _state.SetDegraded("Heartbeat failed: " + ex.Message);
             _log.LogWarning("Heartbeat failed: {Error}", ex.Message);
         }
     }
