@@ -82,7 +82,8 @@ public sealed class CupsBackend : IPrinterBackend
 
     public void Print(string imagePath, PrintOptions options)
     {
-        var args = new List<string> { "-d", options.PrinterName, "-o", "fit-to-page" };
+        // Image is already in its final orientation; ask CUPS for portrait and no auto-rotation.
+        var args = new List<string> { "-d", options.PrinterName, "-o", "fit-to-page", "-o", "orientation-requested=3" };
         if (options.Copies > 1) { args.Add("-n"); args.Add(Math.Clamp(options.Copies, 1, 10).ToString()); }
         if (!string.IsNullOrWhiteSpace(options.PaperName)) { args.Add("-o"); args.Add("media=" + options.PaperName); }
         args.Add("-t"); args.Add("VPass badge");

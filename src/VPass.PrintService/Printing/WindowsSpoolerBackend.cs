@@ -127,6 +127,11 @@ public sealed class WindowsSpoolerBackend : IPrinterBackend
             doc.DefaultPageSettings.PaperSize = match;
         }
 
+        // The badge image is already in its final orientation (BadgeImage rotates templates 3/4), so
+        // the page must be portrait: width across the roll, height along the feed. Brother QL drivers
+        // default continuous rolls to Landscape, which turned every badge 90° and shrank it.
+        doc.DefaultPageSettings.Landscape = false;
+
         Exception? pageError = null;
         doc.PrintPage += (_, e) =>
         {
