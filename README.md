@@ -42,6 +42,20 @@ Regions: `au` (default), `uk`, `us`, `ca`, `qa`, `dev`.
 
 The card in the admin portal turns **Online** within a minute.
 
+## Brother QL quick setup (Windows, verified on a QL-820NWB)
+
+```
+vpass-print printers                                   # pick the queue whose port reaches the printer
+vpass-print set-printer "Brother QL-820NWB" --paper "62mm"          # DK-22205 continuous 62 mm roll
+vpass-print set-printer "Brother QL-820NWB" --paper "62mm x 100mm"  # DK-11202 die-cut 62 x 100 labels
+vpass-print test-print
+```
+
+`vpass-print papers` lists every size the driver offers. The service runs as `SYSTEM`, which gets the driver's
+*Printing Defaults*, not your *Printing Preferences*, so the media must be pinned with `--paper` (or set under
+Printer Properties → Advanced → Printing Defaults). The page is always printed portrait; the service rotates
+the two landscape templates itself.
+
 ## Commands
 
 ```
