@@ -1,0 +1,7 @@
+#!/bin/bash
+set -e
+ln -sf /usr/local/vpass-print-service/vpass-print /usr/local/bin/vpass-print
+# Register (or re-register after an upgrade) the launchd daemon. Pairing is done separately:
+#   sudo vpass-print pair <code> --region <au|uk|us|ca>
+/usr/local/vpass-print-service/vpass-print install || true
+exit 0

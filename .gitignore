@@ -1,0 +1,10 @@
+bin/
+obj/
+*.user
+.vs/
+.idea/
+*.swp
+TestResults/
+artifacts/
+*.DotSettings.user
+.DS_Store

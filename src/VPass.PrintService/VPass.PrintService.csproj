@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>vpass-print</AssemblyName>
+    <RootNamespace>VPass.PrintService</RootNamespace>
+    <UserSecretsId>vpass-print-service</UserSecretsId>
+    <ApplicationIcon Condition="Exists('printer.ico')">printer.ico</ApplicationIcon>
+    <!-- Single-file, self-contained builds are produced by the release workflow:
+         dotnet publish -c Release -r <rid> -p:PublishSingleFile=true -p:SelfContained=true -->
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Systemd" Version="8.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="8.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="8.0.1" />
+    <PackageReference Include="Serilog.Extensions.Hosting" Version="8.0.0" />
+    <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
+    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.5" />
+    <!-- Windows-only at runtime; referenced from WindowsSpoolerBackend behind OperatingSystem.IsWindows(). -->
+    <PackageReference Include="System.Drawing.Common" Version="8.0.8" />
+    <PackageReference Include="System.Management" Version="8.0.0" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="VPass.PrintService.Tests" />
+  </ItemGroup>
+
+</Project>
