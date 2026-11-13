@@ -112,6 +112,37 @@ Server side: `server_mobile/Controllers/PrinterController.cs` (device API),
 `server_organisation/Controllers/PrinterController.cs` (admin API),
 `server_organisation/SQL/Printers/001_create_printer_tables.sql`.
 
-Releases: push a `v1.2.3` tag; `.github/workflows/release.yml` builds the installers. Code signing
-(Windows Authenticode, Apple Developer ID + notarisation) is **not** wired up yet and is required
-before public distribution.
+Releases: push a `v1.2.3` tag; `.github/workflows/release.yml` builds the installers.
+
+### macOS signing and notarization (Developer ID)
+
+The macOS pkgs are signed and notarized in CI when these repository secrets exist
+(Settings → Secrets and variables → Actions). Without them the build still succeeds but the pkg is
+unsigned and Gatekeeper blocks it.
+
+| Secret | Value |
+|---|---|
+| `MACOS_CERTS_P12` | base64 of one .p12 containing **Developer ID Application** and **Developer ID Installer** certificates with their private keys (`base64 -i certs.p12 \| pbcopy`) |
+| `MACOS_CERTS_PASSWORD` | the .p12 export password |
+| `MACOS_SIGN_APP_IDENTITY` | `Developer ID Application: <Company> (<TEAMID>)` exactly as Keychain shows it |
+| `MACOS_SIGN_INSTALLER_IDENTITY` | `Developer ID Installer: <Company> (<TEAMID>)` |
+| `APPLE_API_KEY_P8` | base64 of the App Store Connect API key file `AuthKey_<KEYID>.p8` |
+| `APPLE_API_KEY_ID` | the key id |
+| `APPLE_API_ISSUER_ID` | the issuer id (UUID shown on the API keys page) |
+
+One-time setup by the Apple Developer **Account Holder**:
+
+1. developer.apple.com → Certificates → **+** → *Developer ID Application*, then again → *Developer ID Installer*
+   (each needs a CSR from Keychain Access → Certificate Assistant → Request a Certificate from a CA).
+2. Download both, double-click to add them to the login keychain, select both certificates in
+   Keychain Access → *My Certificates* → Export 2 items → `certs.p12` with a password.
+3. App Store Connect → Users and Access → Integrations → **App Store Connect API** → generate a key with
+   the *Developer* role; download the `.p8` (only downloadable once) and note the key id and issuer id.
+4. Add the seven secrets above, then tag a release.
+
+What CI does: imports the .p12 into a temporary keychain, `codesign`s `vpass-print` with the hardened
+runtime and `installers/macos/entitlements.plist` (JIT exceptions .NET needs; without them the binary
+fails with "Failed to create CoreCLR"), builds the pkg signed with the Installer identity, submits it with
+`notarytool`, staples the ticket and checks it with `spctl`. The keychain and key file are deleted afterwards.
+
+Windows Authenticode signing is not wired up yet; SmartScreen warns on the setup.exe until it is.
